@@ -1,0 +1,20 @@
+# Distribution / packaging
+build/
+bin/
+
+# Go files
+*.exe
+
+# Environment variables
+.env
+
+# Database files
+*.db
+data/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
