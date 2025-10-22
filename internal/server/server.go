@@ -56,7 +56,7 @@ func (s *Server) Start(cfg *config.Config) error {
 		WriteTimeout: cfg.Server.WriteTimeout,
 	}
 
-	s.log.Infof("Starting HTTP server on %s", cfg.Server.Address())
+	s.log.Infof("HTTP server listening on %s", cfg.Server.Address())
 
 	// Start server in a goroutine
 	go func() {
@@ -70,8 +70,6 @@ func (s *Server) Start(cfg *config.Config) error {
 
 // Shutdown gracefully shuts down the HTTP server
 func (s *Server) Shutdown(ctx context.Context) error {
-	s.log.Info("Shutting down HTTP server...")
-
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}

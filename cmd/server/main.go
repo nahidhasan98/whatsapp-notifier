@@ -55,11 +55,10 @@ func initialize(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	fmt.Printf("Configuration loaded: %+v\n", cfg)
 
 	// Initialize logger
 	log = logger.New(cfg.Log.Level, cfg.Log.Format)
-	log.Info("Starting WhatsApp Notifier")
+	log.Info("Starting WhatsApp Notifier Application")
 
 	// Initialize WhatsApp client
 	waClient, err = app.NewWhatsAppClient(
@@ -67,6 +66,7 @@ func initialize(ctx context.Context) error {
 		cfg.Database.Driver,
 		cfg.Database.DSN,
 		cfg.WhatsApp.LogLevel,
+		cfg.WhatsApp.DeviceName,
 		log,
 	)
 	if err != nil {
@@ -81,10 +81,9 @@ func initialize(ctx context.Context) error {
 
 func startWhatsAppClient(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Go(func() {
-		defer wg.Done()
 		defer func() {
-			log.Info("WhatsApp client goroutine finished")
 			waClient.Disconnect()
+			log.Info("WhatsApp client shutdown complete")
 		}()
 
 		log.Info("Starting WhatsApp client...")
@@ -92,7 +91,6 @@ func startWhatsAppClient(ctx context.Context, wg *sync.WaitGroup) {
 			errChan <- fmt.Errorf("failed to connect to WhatsApp: %w", err)
 			return
 		}
-		log.Info("WhatsApp client connected and running independently")
 
 		// Keep the WhatsApp client running
 		// It will handle reconnections automatically
@@ -103,8 +101,6 @@ func startWhatsAppClient(ctx context.Context, wg *sync.WaitGroup) {
 
 func startWebServer(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Go(func() {
-		defer log.Info("HTTP server goroutine finished")
-
 		log.Info("Starting HTTP server...")
 
 		// Initialize HTTP handlers
@@ -116,8 +112,6 @@ func startWebServer(ctx context.Context, wg *sync.WaitGroup) {
 			errChan <- fmt.Errorf("failed to start HTTP server: %w", err)
 			return
 		}
-
-		log.Info("HTTP server started and running independently")
 
 		// Keep the server running until shutdown
 		<-ctx.Done()

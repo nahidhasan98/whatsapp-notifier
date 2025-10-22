@@ -77,6 +77,7 @@ DB_DSN=file:mywhatsapp.db?_foreign_keys=on          # Database connection string
 ### WhatsApp Configuration
 ```bash
 WHATSAPP_LOG_LEVEL=INFO          # WhatsApp client log level (default: INFO)
+WHATSAPP_DEVICE_NAME="macOS"     # Custom device name shown in WhatsApp (default: "macOS")
 ```
 
 ### Logging Configuration

@@ -13,6 +13,7 @@ import (
 	"github.com/nahidhasan98/whatsapp-notifier/internal/logger"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -42,7 +43,7 @@ type ReconnectConfig struct {
 }
 
 // NewWhatsAppClient creates and initializes a new WhatsApp client
-func NewWhatsAppClient(ctx context.Context, dbDriver, dbDSN, logLevel string, log *logger.Logger) (*WhatsAppClient, error) {
+func NewWhatsAppClient(ctx context.Context, dbDriver, dbDSN, logLevel, deviceName string, log *logger.Logger) (*WhatsAppClient, error) {
 	// Create database logger
 	dbLog := waLog.Stdout("Database", logLevel, true)
 
@@ -60,6 +61,16 @@ func NewWhatsAppClient(ctx context.Context, dbDriver, dbDSN, logLevel string, lo
 
 	// Create client logger
 	clientLog := waLog.Stdout("Client", logLevel, true)
+
+	// Customize the OS name shown in WhatsApp's linked devices
+	// This uses the SetOSInfo function to change DeviceProps.Os
+	if deviceName == "" {
+		deviceName = "macOS"
+	}
+	store.SetOSInfo(deviceName, [3]uint32{0, 1, 0})
+
+	// Also set the platform field in the device store
+	deviceStore.Platform = deviceName
 
 	// Create WhatsApp client
 	client := whatsmeow.NewClient(deviceStore, clientLog)
@@ -190,44 +201,144 @@ func (w *WhatsAppClient) Connect(ctx context.Context) error {
 
 	if w.Client.Store.ID == nil {
 		// No ID stored, new login required
-		w.log.Info("No existing session found. Starting QR code authentication...")
-		w.log.Info("Please scan the QR code with your WhatsApp mobile app within 60 seconds")
+		w.log.Info("No existing session found, starting QR authentication...")
 
-		// Create a timeout context for QR code scanning
-		qrCtx, qrCancel := context.WithTimeout(ctx, 60*time.Second)
-		defer qrCancel()
+		// Start QR authentication in background to not block
+		go w.authenticateWithQR(ctx)
 
-		qrChan, err := w.Client.GetQRChannel(qrCtx)
-		if err != nil {
-			return fmt.Errorf("failed to get QR channel: %w", err)
-		}
-
+		// Return immediately so HTTP server can start
+		return nil
+	} else {
+		// Already logged in, just connect
+		w.log.Info("Existing session found. Connecting...")
 		if err := w.Client.Connect(); err != nil {
 			return fmt.Errorf("failed to connect client: %w", err)
 		}
+	}
 
-		// Handle QR code events with timeout
-		qrCodeDisplayed := false
-		for evt := range qrChan {
-			select {
-			case <-qrCtx.Done():
-				if qrCodeDisplayed {
-					w.log.Error("QR code authentication timed out. Please try again.", nil)
-					return fmt.Errorf("QR code authentication timed out after 60 seconds")
+	// Wait a moment and verify we're actually connected and authenticated
+	time.Sleep(2 * time.Second)
+
+	if !w.Client.IsConnected() {
+		w.log.Error("Failed to establish WhatsApp connection after authentication", nil)
+		return fmt.Errorf("connection not established after authentication")
+	}
+
+	// Double-check that we have a valid session
+	if w.Client.Store.ID == nil {
+		w.log.Error("Authentication completed but no session ID found", nil)
+		return fmt.Errorf("no valid session after authentication")
+	}
+
+	w.isConnected = true
+	w.log.Info("Successfully connected to WhatsApp")
+	w.log.Infof("Device ID: %s", w.Client.Store.ID.String())
+	return nil
+}
+
+// authenticateWithQR handles QR code authentication in a loop
+func (w *WhatsAppClient) authenticateWithQR(ctx context.Context) {
+	maxAttempts := 5
+	attemptDelay := 5 * time.Second
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Check if context was cancelled before starting new attempt
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		if attempt > 1 {
+			w.log.Infof("Generating new QR code (attempt %d/%d)...", attempt, maxAttempts)
+			time.Sleep(attemptDelay)
+		}
+
+		// Create a timeout context for this QR code attempt
+		qrCtx, qrCancel := context.WithTimeout(ctx, 60*time.Second)
+
+		qrChan, err := w.Client.GetQRChannel(qrCtx)
+		if err != nil {
+			qrCancel()
+			w.log.Errorf("Failed to get QR channel: %v", err)
+			continue
+		}
+
+		// Connect the client if not already connected
+		if !w.Client.IsConnected() {
+			if err := w.Client.Connect(); err != nil {
+				qrCancel()
+				w.log.Errorf("Failed to connect client: %v", err)
+				continue
+			}
+		}
+
+		// Handle QR code events
+		authSuccess, cancelled := w.handleQREvents(ctx, qrCtx, qrChan)
+		qrCancel()
+
+		// Check if parent context was cancelled (shutdown signal)
+		if cancelled {
+			w.log.Info("QR authentication cancelled")
+			return
+		}
+
+		if authSuccess {
+			w.reconnectMutex.Lock()
+			w.isConnected = true
+			w.reconnectMutex.Unlock()
+
+			w.log.Info("WhatsApp authentication successful")
+			if w.Client.Store.ID != nil {
+				w.log.Infof("Device ID: %s", w.Client.Store.ID.String())
+			}
+			return
+		}
+
+		w.log.Warn("QR code authentication failed, will retry with new QR code...")
+	}
+
+	w.log.Error("Failed to authenticate after multiple attempts", nil)
+}
+
+// handleQREvents processes QR code events and returns (success, cancelled)
+// success: true if authentication succeeded
+// cancelled: true if parent context was cancelled (shutdown)
+func (w *WhatsAppClient) handleQREvents(parentCtx, qrCtx context.Context, qrChan <-chan whatsmeow.QRChannelItem) (bool, bool) {
+	qrCodeDisplayed := false
+
+	for {
+		select {
+		case <-parentCtx.Done():
+			// Parent context cancelled (shutdown signal) - don't log warnings
+			return false, true
+
+		case <-qrCtx.Done():
+			// QR context timed out (60 seconds expired)
+			if qrCodeDisplayed {
+				w.log.Warn("QR code timed out without being scanned")
+			}
+			return false, false
+
+		case evt, ok := <-qrChan:
+			if !ok {
+				// Channel closed - check if parent context was cancelled
+				select {
+				case <-parentCtx.Done():
+					return false, true // Cancelled
+				default:
+					return false, false // Normal closure
 				}
-				return fmt.Errorf("QR code generation timed out")
-			default:
 			}
 
 			switch evt.Event {
 			case "code":
 				qrCodeDisplayed = true
-				w.log.Infof("QR code received. Please scan with your WhatsApp mobile app:")
 
 				// Render QR code in terminal
-				fmt.Println("\n" + strings.Repeat("=", 50))
+				fmt.Println("\n" + strings.Repeat("=", 64))
 				fmt.Println("📱 SCAN QR CODE WITH WHATSAPP MOBILE APP")
-				fmt.Println(strings.Repeat("=", 50))
+				fmt.Println(strings.Repeat("=", 64))
 
 				cfg := qrterminal.Config{
 					Level:      qrterminal.M,
@@ -237,33 +348,24 @@ func (w *WhatsAppClient) Connect(ctx context.Context) error {
 				}
 				qrterminal.GenerateWithConfig(evt.Code, cfg)
 
-				fmt.Println(strings.Repeat("=", 50))
+				fmt.Println(strings.Repeat("=", 64))
 				fmt.Println("⏰ You have 60 seconds to scan the QR code")
 				fmt.Println("📱 Open WhatsApp > Settings > Linked Devices > Link a Device")
-				fmt.Println(strings.Repeat("=", 50) + "\n")
+				fmt.Println(strings.Repeat("=", 64) + "\n")
 
 			case "success":
 				w.log.Info("QR code scanned successfully! Completing authentication...")
+				return true, false
 
 			case "timeout":
-				w.log.Error("QR code expired. Please restart the application to get a new QR code.", nil)
-				return fmt.Errorf("QR code expired, please restart to get a new QR code")
+				w.log.Warn("QR code expired, generating new one...")
+				return false, false
 
 			default:
 				w.log.Infof("Authentication event: %s", evt.Event)
 			}
 		}
-	} else {
-		// Already logged in, just connect
-		w.log.Info("Existing session found. Connecting...")
-		if err := w.Client.Connect(); err != nil {
-			return fmt.Errorf("failed to connect client: %w", err)
-		}
 	}
-
-	w.isConnected = true
-	w.log.Info("Successfully connected to WhatsApp")
-	return nil
 }
 
 // Disconnect disconnects the WhatsApp client
@@ -330,8 +432,9 @@ func (w *WhatsAppClient) IsConnected() bool {
 	w.reconnectMutex.RLock()
 	defer w.reconnectMutex.RUnlock()
 
-	// Check both our internal state and the actual client state
-	return w.isConnected && w.Client.IsConnected()
+	// Check both our internal state, the actual client state, and valid session
+	hasValidSession := w.Client.Store.ID != nil
+	return w.isConnected && w.Client.IsConnected() && hasValidSession
 }
 
 // EnsureConnected ensures the client is connected, attempting to reconnect if necessary
@@ -349,11 +452,21 @@ func (w *WhatsAppClient) GetConnectionStatus() map[string]interface{} {
 	w.reconnectMutex.RLock()
 	defer w.reconnectMutex.RUnlock()
 
+	hasValidSession := w.Client.Store.ID != nil
+	clientConnected := w.Client.IsConnected()
+	actuallyConnected := w.isConnected && clientConnected && hasValidSession
+
 	return map[string]interface{}{
-		"connected":           w.isConnected && w.Client.IsConnected(),
-		"internal_state":      w.isConnected,
-		"client_state":        w.Client.IsConnected(),
-		"has_session":         w.Client.Store.ID != nil,
+		"connected":      actuallyConnected,
+		"internal_state": w.isConnected,
+		"client_state":   clientConnected,
+		"has_session":    hasValidSession,
+		"session_id": func() string {
+			if hasValidSession {
+				return w.Client.Store.ID.String()
+			}
+			return "none"
+		}(),
 		"reconnection_active": w.cancelReconnect != nil,
 	}
 }

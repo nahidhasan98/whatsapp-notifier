@@ -44,7 +44,8 @@ type DatabaseConfig struct {
 
 // WhatsAppConfig holds WhatsApp-specific configuration
 type WhatsAppConfig struct {
-	LogLevel string
+	LogLevel   string
+	DeviceName string // Custom device name that appears in WhatsApp linked devices
 }
 
 // LogConfig holds logging configuration
@@ -77,7 +78,8 @@ func Load() (*Config, error) {
 			DSN:    getEnv("DB_DSN", "file:mywhatsapp.db?_foreign_keys=on"),
 		},
 		WhatsApp: WhatsAppConfig{
-			LogLevel: getEnv("WHATSAPP_LOG_LEVEL", "INFO"),
+			LogLevel:   getEnv("WHATSAPP_LOG_LEVEL", "INFO"),
+			DeviceName: getEnv("WHATSAPP_DEVICE_NAME", "macOS"),
 		},
 		Log: LogConfig{
 			Level:  getEnv("LOG_LEVEL", "info"),
