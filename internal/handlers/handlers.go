@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/nahidhasan98/whatsapp-notifier/internal/app"
@@ -109,13 +111,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Normalize and sanitize input
-	normalizedJID, appErr := h.validator.NormalizeJID(req.To)
-	if appErr != nil {
-		h.writeAppError(w, appErr)
-		return
-	}
-	req.To = normalizedJID
+	// Sanitize message
 	req.Message = h.validator.SanitizeMessage(req.Message)
 
 	// Ensure client is connected
@@ -128,10 +124,23 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Check if it's a LID - warn user that it might not work
+	if strings.HasSuffix(req.To, "@lid") {
+		h.log.Infof("LID detected: %s. Attempting to send directly (may fail if not messageable)", req.To)
+	}
+
 	// Send message
 	ctx := r.Context()
 	if err := h.waClient.SendText(ctx, req.To, req.Message); err != nil {
 		h.log.Error("Failed to send message", err)
+
+		// Provide helpful error message for LIDs
+		if strings.HasSuffix(req.To, "@lid") {
+			h.writeAppError(w, errors.MessageSendFailed(
+				fmt.Errorf("cannot send message to LID %s. LIDs are internal identifiers and cannot receive messages directly. Please use the corresponding @s.whatsapp.net JID instead. Original error: %w", req.To, err)))
+			return
+		}
+
 		h.writeAppError(w, errors.MessageSendFailed(err))
 		return
 	}

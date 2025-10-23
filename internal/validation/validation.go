@@ -19,6 +19,12 @@ var (
 
 	// Business JID pattern: number@c.us
 	businessJIDPattern = regexp.MustCompile(`^\d{10,15}@c\.us$`)
+
+	// LID pattern: internalid@lid (simple LID)
+	lidPattern = regexp.MustCompile(`^\d+@lid$`)
+
+	// LID with suffix pattern: internalid:suffix@lid (e.g., for business accounts)
+	lidWithSuffixPattern = regexp.MustCompile(`^\d+:\d+@lid$`)
 )
 
 // Validator provides validation methods
@@ -72,6 +78,16 @@ func (v *Validator) IsValidJID(jid string) bool {
 
 	// Check business JID
 	if businessJIDPattern.MatchString(jid) {
+		return true
+	}
+
+	// Check LID (Local ID)
+	if lidPattern.MatchString(jid) {
+		return true
+	}
+
+	// Check LID with suffix (Business accounts)
+	if lidWithSuffixPattern.MatchString(jid) {
 		return true
 	}
 
