@@ -1,5 +1,7 @@
 package models
 
+import "strings"
+
 // GiteaWebhookPayload represents the Gitea webhook payload
 type GiteaWebhookPayload struct {
 	Secret     string          `json:"secret"`
@@ -47,4 +49,46 @@ type GiteaUser struct {
 	AvatarURL string `json:"avatar_url"`
 	Username  string `json:"username"`
 	Name      string `json:"name"`
+}
+
+// GetRepositoryName returns the full repository name
+func (p GiteaWebhookPayload) GetRepositoryName() string {
+	return p.Repository.FullName
+}
+
+// GetPusherName returns the pusher's name
+func (p GiteaWebhookPayload) GetPusherName() string {
+	// Prefer committer name from first commit, fallback to pusher
+	if len(p.Commits) > 0 && p.Commits[0].Committer.Name != "" {
+		return p.Commits[0].Committer.Name
+	}
+	return p.Pusher.Name
+}
+
+// GetBranch returns the branch name without refs/heads/ prefix
+func (p GiteaWebhookPayload) GetBranch() string {
+	return strings.TrimPrefix(p.Ref, "refs/heads/")
+}
+
+// GetCommitCount returns the number of commits
+func (p GiteaWebhookPayload) GetCommitCount() int {
+	return len(p.Commits)
+}
+
+// GetCommits returns commits in a generic format
+func (p GiteaWebhookPayload) GetCommits() []CommitInfo {
+	commits := make([]CommitInfo, len(p.Commits))
+	for i, c := range p.Commits {
+		commits[i] = CommitInfo{
+			ID:      c.ID,
+			Message: c.Message,
+			URL:     c.URL,
+		}
+	}
+	return commits
+}
+
+// GetCompareURL returns the compare URL
+func (p GiteaWebhookPayload) GetCompareURL() string {
+	return p.CompareURL
 }

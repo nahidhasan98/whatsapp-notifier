@@ -1,5 +1,7 @@
 package models
 
+import "strings"
+
 // GitHubWebhookPayload represents the GitHub webhook payload
 type GitHubWebhookPayload struct {
 	Ref        string           `json:"ref"`
@@ -101,4 +103,46 @@ type GitHubUser struct {
 type GitHubPusher struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
+}
+
+// GetRepositoryName returns the full repository name
+func (p GitHubWebhookPayload) GetRepositoryName() string {
+	return p.Repository.FullName
+}
+
+// GetPusherName returns the pusher's name
+func (p GitHubWebhookPayload) GetPusherName() string {
+	// Prefer committer name from first commit, fallback to pusher
+	if len(p.Commits) > 0 && p.Commits[0].Committer.Name != "" {
+		return p.Commits[0].Committer.Name
+	}
+	return p.Pusher.Name
+}
+
+// GetBranch returns the branch name without refs/heads/ prefix
+func (p GitHubWebhookPayload) GetBranch() string {
+	return strings.TrimPrefix(p.Ref, "refs/heads/")
+}
+
+// GetCommitCount returns the number of commits
+func (p GitHubWebhookPayload) GetCommitCount() int {
+	return len(p.Commits)
+}
+
+// GetCommits returns commits in a generic format
+func (p GitHubWebhookPayload) GetCommits() []CommitInfo {
+	commits := make([]CommitInfo, len(p.Commits))
+	for i, c := range p.Commits {
+		commits[i] = CommitInfo{
+			ID:      c.ID,
+			Message: c.Message,
+			URL:     c.URL,
+		}
+	}
+	return commits
+}
+
+// GetCompareURL returns the compare URL
+func (p GitHubWebhookPayload) GetCompareURL() string {
+	return p.Compare
 }
