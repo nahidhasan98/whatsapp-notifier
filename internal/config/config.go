@@ -25,6 +25,9 @@ type Config struct {
 
 	// Security configuration
 	Security SecurityConfig
+
+	// Gitea configuration
+	Gitea GiteaConfig
 }
 
 // ServerConfig holds server-specific configuration
@@ -60,6 +63,12 @@ type SecurityConfig struct {
 	APIKeys []string
 }
 
+// GiteaConfig holds Gitea webhook configuration
+type GiteaConfig struct {
+	WebhookSecret string // Secret for webhook validation
+	Recipient     string // WhatsApp JID to send notifications to
+}
+
 // Load loads configuration from environment variables with sensible defaults
 func Load() (*Config, error) {
 	// Try to load .env file (ignore errors - it's optional)
@@ -87,7 +96,11 @@ func Load() (*Config, error) {
 		},
 		Security: SecurityConfig{
 			// API Keys that clients use to authenticate
-			APIKeys: getEnvAsSlice("API_KEYS", []string{"default-api-key"}),
+			APIKeys: getEnvAsSlice("API_KEYS", []string{}),
+		},
+		Gitea: GiteaConfig{
+			WebhookSecret: getEnv("GITEA_WEBHOOK_SECRET", ""),
+			Recipient:     getEnv("GITEA_RECIPIENT", ""),
 		},
 	}
 

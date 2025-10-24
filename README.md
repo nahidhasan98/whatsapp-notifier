@@ -88,10 +88,16 @@ LOG_FORMAT=text                  # Log format: "json" or "text" (default: text)
 
 ### Security Configuration
 ```bash
-API_KEYS=your-secure-api-key-1,your-secure-api-key-2   # Comma-separated API keys
+API_KEYS=api-key-123,api-key-456,api-key-789   # Comma-separated API keys
 ```
 
 **⚠️ Important**: Set secure API keys before deploying to production. The default keys will cause validation errors.
+
+### Gitea Webhook Configuration
+```bash
+GITEA_WEBHOOK_SECRET=webhook-secret         # Webhook secret for authentication
+GITEA_RECIPIENT=1234567890@s.whatsapp.net   # WhatsApp JID to receive notifications
+```
 
 ## API Endpoints
 
@@ -153,6 +159,55 @@ GET /groups
 X-API-Key: your-secure-api-key
 ```
 
+### Gitea Webhook
+Receive push notifications from Gitea repositories and forward them to WhatsApp.
+
+```http
+POST /webhook/gitea
+Content-Type: application/json
+
+{
+  "secret": "your-webhook-secret-here",
+  "ref": "refs/heads/main",
+  "repository": {
+    "name": "my-repo",
+    "full_name": "owner/my-repo",
+    "html_url": "https://git.example.com/owner/my-repo"
+  },
+  "pusher": {
+    "username": "john_doe",
+    "full_name": "John Doe"
+  },
+  "commits": [
+    {
+      "id": "abc123def456",
+      "message": "Fix bug in authentication",
+      "url": "https://git.example.com/owner/my-repo/commit/abc123def456",
+      "author": {
+        "name": "John Doe",
+        "email": "john@example.com"
+      },
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "compare_url": "https://git.example.com/owner/my-repo/compare/old...new"
+}
+```
+
+**Setup in Gitea**:
+1. Go to repository Settings > Webhooks
+2. Add webhook with URL: `http://your-server:8080/webhook/gitea`
+3. Set Content Type: `application/json`
+4. Add the webhook payload with your secret
+5. Choose "Push events" as trigger
+
+**Response**:
+```json
+{
+  "status": "notification sent"
+}
+```
+
 ## JID Format
 
 WhatsApp uses JID (Jabber ID) format for addressing:
@@ -183,6 +238,29 @@ curl -H "X-API-Key: your-secure-api-key" http://localhost:8080/health
 ### Get all contacts
 ```bash
 curl -H "X-API-Key: your-secure-api-key" http://localhost:8080/contacts
+```
+
+### Test Gitea webhook
+```bash
+curl -X POST http://localhost:8080/webhook/gitea \
+  -H "Content-Type: application/json" \
+  -d '{
+    "secret": "your-webhook-secret-here",
+    "ref": "refs/heads/main",
+    "repository": {
+      "name": "test-repo",
+      "full_name": "user/test-repo"
+    },
+    "pusher": {
+      "username": "johndoe"
+    },
+    "commits": [
+      {
+        "id": "abc123",
+        "message": "Test commit"
+      }
+    ]
+  }'
 ```
 
 ## Troubleshooting

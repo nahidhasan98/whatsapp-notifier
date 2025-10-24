@@ -194,7 +194,7 @@ func (m *Middleware) ContentType(next http.Handler) http.Handler {
 func (m *Middleware) APIKeyAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip auth for health endpoint
-		if r.URL.Path == "/health" {
+		if r.URL.Path == "/health" || r.URL.Path == "/webhook/gitea" {
 			next.ServeHTTP(w, r)
 			return
 		}
