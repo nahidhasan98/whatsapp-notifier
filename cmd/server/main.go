@@ -104,7 +104,14 @@ func startWebServer(ctx context.Context, wg *sync.WaitGroup) {
 		log.Info("Starting HTTP server...")
 
 		// Initialize HTTP handlers
-		httpHandler := handlers.New(waClient, log, cfg.Gitea.WebhookSecret, cfg.Gitea.Recipient)
+		httpHandler := handlers.New(
+			waClient,
+			log,
+			cfg.Gitea.WebhookSecret,
+			cfg.Gitea.Recipient,
+			cfg.GitHub.WebhookSecret,
+			cfg.GitHub.Recipient,
+		)
 
 		// Initialize and start HTTP server
 		httpServer := server.New(cfg, httpHandler, log)

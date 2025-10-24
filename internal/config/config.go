@@ -28,6 +28,9 @@ type Config struct {
 
 	// Gitea configuration
 	Gitea GiteaConfig
+
+	// GitHub configuration
+	GitHub GitHubConfig
 }
 
 // ServerConfig holds server-specific configuration
@@ -69,6 +72,12 @@ type GiteaConfig struct {
 	Recipient     string // WhatsApp JID to send notifications to
 }
 
+// GitHubConfig holds GitHub webhook configuration
+type GitHubConfig struct {
+	WebhookSecret string // Secret for webhook validation
+	Recipient     string // WhatsApp JID to send notifications to
+}
+
 // Load loads configuration from environment variables with sensible defaults
 func Load() (*Config, error) {
 	// Try to load .env file (ignore errors - it's optional)
@@ -101,6 +110,10 @@ func Load() (*Config, error) {
 		Gitea: GiteaConfig{
 			WebhookSecret: getEnv("GITEA_WEBHOOK_SECRET", ""),
 			Recipient:     getEnv("GITEA_RECIPIENT", ""),
+		},
+		GitHub: GitHubConfig{
+			WebhookSecret: getEnv("GITHUB_WEBHOOK_SECRET", ""),
+			Recipient:     getEnv("GITHUB_RECIPIENT", ""),
 		},
 	}
 

@@ -41,6 +41,7 @@ func (s *Server) Start(cfg *config.Config) error {
 	mux.HandleFunc("/groups", s.handler.GetGroups)
 	mux.HandleFunc("/send", s.handler.SendMessage)
 	mux.HandleFunc("/webhook/gitea", s.handler.GiteaWebhook)
+	mux.HandleFunc("/webhook/github", s.handler.GitHubWebhook)
 
 	// Apply middleware chain
 	handler := s.middleware.Recovery(mux)

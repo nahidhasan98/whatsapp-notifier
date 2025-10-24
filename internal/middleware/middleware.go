@@ -193,8 +193,8 @@ func (m *Middleware) ContentType(next http.Handler) http.Handler {
 // APIKeyAuth validates API key authentication
 func (m *Middleware) APIKeyAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip auth for health endpoint
-		if r.URL.Path == "/health" || r.URL.Path == "/webhook/gitea" {
+		// Skip auth for health endpoint and webhook endpoints
+		if r.URL.Path == "/health" || r.URL.Path == "/webhook/gitea" || r.URL.Path == "/webhook/github" {
 			next.ServeHTTP(w, r)
 			return
 		}

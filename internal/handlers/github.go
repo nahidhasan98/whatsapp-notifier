@@ -14,13 +14,13 @@ import (
 	"github.com/nahidhasan98/whatsapp-notifier/internal/models"
 )
 
-// GiteaWebhook handles Gitea webhook requests
-func (h *Handler) GiteaWebhook(w http.ResponseWriter, r *http.Request) {
-	// Get signature from header (Gitea uses X-Gitea-Signature)
-	headerSignature := r.Header.Get("X-Gitea-Signature")
+// GitHubWebhook handles GitHub webhook requests
+func (h *Handler) GitHubWebhook(w http.ResponseWriter, r *http.Request) {
+	// Get signature from header (GitHub uses X-Hub-Signature-256)
+	headerSignature := r.Header.Get("X-Hub-Signature-256")
 	if headerSignature == "" {
-		h.log.Warn("Gitea webhook received without signature header")
-		h.writeAppError(w, errors.New(errors.ErrCodeUnauthorized, "Missing X-Gitea-Signature header"))
+		h.log.Warn("GitHub webhook received without signature header")
+		h.writeAppError(w, errors.New(errors.ErrCodeUnauthorized, "Missing X-Hub-Signature-256 header"))
 		return
 	}
 
@@ -32,16 +32,16 @@ func (h *Handler) GiteaWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify webhook signature
-	if !h.verifyGiteaSignature(body, headerSignature) {
-		h.log.Warn("Invalid Gitea webhook signature")
+	if !h.verifyGitHubSignature(body, headerSignature) {
+		h.log.Warn("Invalid GitHub webhook signature")
 		h.writeAppError(w, errors.New(errors.ErrCodeUnauthorized, "Invalid webhook signature"))
 		return
 	}
 
-	h.log.Info("Gitea webhook received: " + string(body))
+	h.log.Info("GitHub webhook received: " + string(body))
 
 	// Parse webhook payload
-	var payload models.GiteaWebhookPayload
+	var payload models.GitHubWebhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
 		h.writeAppError(w, errors.InvalidRequest("Invalid webhook payload: "+err.Error()))
 		return
@@ -58,39 +58,47 @@ func (h *Handler) GiteaWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Construct message
-	message := h.formatGiteaMessage(payload)
+	message := h.formatGitHubMessage(payload)
 
 	// Send message to configured recipient
 	ctx := r.Context()
-	if err := h.waClient.SendText(ctx, h.giteaRecipient, message); err != nil {
-		h.log.Error("Failed to send Gitea webhook notification", err)
+	if err := h.waClient.SendText(ctx, h.githubRecipient, message); err != nil {
+		h.log.Error("Failed to send GitHub webhook notification", err)
 		h.writeAppError(w, errors.MessageSendFailed(err))
 		return
 	}
 
-	h.log.Infof("Gitea webhook notification sent to %s", h.giteaRecipient)
+	h.log.Infof("GitHub webhook notification sent to %s", h.githubRecipient)
 	h.writeJSON(w, map[string]string{"status": "notification sent"}, http.StatusOK)
 }
 
-// verifyGiteaSignature verifies the HMAC SHA256 signature of the webhook payload
-func (h *Handler) verifyGiteaSignature(payload []byte, headerSignature string) bool {
-	if h.giteaSecret == "" {
+// verifyGitHubSignature verifies the HMAC SHA256 signature of the webhook payload
+func (h *Handler) verifyGitHubSignature(payload []byte, headerSignature string) bool {
+	if h.githubSecret == "" {
 		// If no secret is configured, skip signature verification
-		h.log.Warn("Gitea webhook secret not configured, skipping signature verification")
+		h.log.Warn("GitHub webhook secret not configured, skipping signature verification")
 		return true
 	}
 
+	// GitHub signature format: "sha256=<signature>"
+	if !strings.HasPrefix(headerSignature, "sha256=") {
+		return false
+	}
+
+	// Extract the signature part
+	providedSignature := strings.TrimPrefix(headerSignature, "sha256=")
+
 	// Calculate HMAC SHA256 signature
-	mac := hmac.New(sha256.New, []byte(h.giteaSecret))
+	mac := hmac.New(sha256.New, []byte(h.githubSecret))
 	mac.Write(payload)
 	expectedSignature := hex.EncodeToString(mac.Sum(nil))
 
 	// Compare signatures using constant time comparison to prevent timing attacks
-	return hmac.Equal([]byte(headerSignature), []byte(expectedSignature))
+	return hmac.Equal([]byte(providedSignature), []byte(expectedSignature))
 }
 
-// formatGiteaMessage constructs a formatted WhatsApp message from Gitea webhook payload
-func (h *Handler) formatGiteaMessage(payload models.GiteaWebhookPayload) string {
+// formatGitHubMessage constructs a formatted WhatsApp message from GitHub webhook payload
+func (h *Handler) formatGitHubMessage(payload models.GitHubWebhookPayload) string {
 	var sb strings.Builder
 
 	// Repository and pusher info
@@ -138,8 +146,8 @@ func (h *Handler) formatGiteaMessage(payload models.GiteaWebhookPayload) string 
 	}
 
 	// Add compare URL if available
-	if payload.CompareURL != "" {
-		sb.WriteString(fmt.Sprintf("\n🔗 View changes: %s", payload.CompareURL))
+	if payload.Compare != "" {
+		sb.WriteString(fmt.Sprintf("\n🔗 View changes: %s", payload.Compare))
 	}
 
 	return sb.String()

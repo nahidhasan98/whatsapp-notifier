@@ -8,20 +8,24 @@ import (
 
 // Handler holds dependencies for HTTP handlers
 type Handler struct {
-	waClient       *app.WhatsAppClient
-	log            *logger.Logger
-	validator      *validation.Validator
-	giteaSecret    string
-	giteaRecipient string
+	waClient        *app.WhatsAppClient
+	log             *logger.Logger
+	validator       *validation.Validator
+	giteaSecret     string
+	giteaRecipient  string
+	githubSecret    string
+	githubRecipient string
 }
 
 // New creates a new handler instance
-func New(waClient *app.WhatsAppClient, log *logger.Logger, giteaSecret, giteaRecipient string) *Handler {
+func New(waClient *app.WhatsAppClient, log *logger.Logger, giteaSecret, giteaRecipient, githubSecret, githubRecipient string) *Handler {
 	return &Handler{
-		waClient:       waClient,
-		log:            log,
-		validator:      validation.New(),
-		giteaSecret:    giteaSecret,
-		giteaRecipient: giteaRecipient,
+		waClient:        waClient,
+		log:             log,
+		validator:       validation.New(),
+		giteaSecret:     giteaSecret,
+		giteaRecipient:  giteaRecipient,
+		githubSecret:    githubSecret,
+		githubRecipient: githubRecipient,
 	}
 }
