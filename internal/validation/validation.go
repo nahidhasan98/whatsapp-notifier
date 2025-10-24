@@ -1,7 +1,6 @@
 package validation
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -141,61 +140,4 @@ func (v *Validator) SanitizeMessage(message string) string {
 	message = newlineRegex.ReplaceAllString(message, "\n\n")
 
 	return message
-}
-
-// ValidateQueryParams validates common query parameters
-func (v *Validator) ValidateQueryParams(params map[string]string) *errors.AppError {
-	for key, value := range params {
-		switch key {
-		case "limit":
-			if err := v.validateLimit(value); err != nil {
-				return err
-			}
-		case "offset":
-			if err := v.validateOffset(value); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// validateLimit validates the limit parameter
-func (v *Validator) validateLimit(limit string) *errors.AppError {
-	if limit == "" {
-		return nil
-	}
-
-	// Check if it's a number
-	var limitInt int
-	if _, err := fmt.Sscanf(limit, "%d", &limitInt); err != nil {
-		return errors.ValidationError("Invalid limit parameter: must be a number")
-	}
-
-	// Check range
-	if limitInt < 1 || limitInt > 1000 {
-		return errors.ValidationError("Invalid limit parameter: must be between 1 and 1000")
-	}
-
-	return nil
-}
-
-// validateOffset validates the offset parameter
-func (v *Validator) validateOffset(offset string) *errors.AppError {
-	if offset == "" {
-		return nil
-	}
-
-	// Check if it's a number
-	var offsetInt int
-	if _, err := fmt.Sscanf(offset, "%d", &offsetInt); err != nil {
-		return errors.ValidationError("Invalid offset parameter: must be a number")
-	}
-
-	// Check range
-	if offsetInt < 0 {
-		return errors.ValidationError("Invalid offset parameter: must be non-negative")
-	}
-
-	return nil
 }
