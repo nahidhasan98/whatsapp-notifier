@@ -134,12 +134,56 @@ func (p GitHubWebhookPayload) GetCommits() []CommitInfo {
 	commits := make([]CommitInfo, len(p.Commits))
 	for i, c := range p.Commits {
 		commits[i] = CommitInfo{
-			ID:      c.ID,
-			Message: c.Message,
-			URL:     c.URL,
+			ID:       c.ID,
+			Message:  c.Message,
+			URL:      c.URL,
+			Added:    c.Added,
+			Modified: c.Modified,
+			Removed:  c.Removed,
 		}
 	}
 	return commits
+}
+
+// GetFileChangeSummary returns aggregated file change statistics for all commits
+func (p GitHubWebhookPayload) GetFileChangeSummary() FileChangeSummary {
+	summary := FileChangeSummary{
+		AddedFiles:    make([]string, 0),
+		ModifiedFiles: make([]string, 0),
+		RemovedFiles:  make([]string, 0),
+	}
+
+	// Track unique files to avoid duplicates across commits
+	addedSet := make(map[string]bool)
+	modifiedSet := make(map[string]bool)
+	removedSet := make(map[string]bool)
+
+	for _, commit := range p.Commits {
+		for _, file := range commit.Added {
+			if !addedSet[file] {
+				addedSet[file] = true
+				summary.AddedFiles = append(summary.AddedFiles, file)
+			}
+		}
+		for _, file := range commit.Modified {
+			if !modifiedSet[file] {
+				modifiedSet[file] = true
+				summary.ModifiedFiles = append(summary.ModifiedFiles, file)
+			}
+		}
+		for _, file := range commit.Removed {
+			if !removedSet[file] {
+				removedSet[file] = true
+				summary.RemovedFiles = append(summary.RemovedFiles, file)
+			}
+		}
+	}
+
+	summary.TotalAdded = len(summary.AddedFiles)
+	summary.TotalModified = len(summary.ModifiedFiles)
+	summary.TotalRemoved = len(summary.RemovedFiles)
+
+	return summary
 }
 
 // GetCompareURL returns the compare URL

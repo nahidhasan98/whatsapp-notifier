@@ -38,6 +38,7 @@ type WebhookPayload interface {
 	GetCommitCount() int
 	GetCommits() []models.CommitInfo
 	GetCompareURL() string
+	GetFileChangeSummary() models.FileChangeSummary
 }
 
 // handleWebhook is a generic webhook handler that processes both Gitea and GitHub webhooks
@@ -169,6 +170,51 @@ func (h *Handler) formatWebhookMessage(payload WebhookPayload, provider WebhookP
 	// Add compare URL if available
 	if compareURL := payload.GetCompareURL(); compareURL != "" {
 		sb.WriteString(fmt.Sprintf("\n🔗 View changes: %s", compareURL))
+	}
+
+	// Add file change summary (only for GitHub)
+	if provider == ProviderGitHub {
+		fileChanges := payload.GetFileChangeSummary()
+		totalChanges := fileChanges.TotalAdded + fileChanges.TotalModified + fileChanges.TotalRemoved
+		if totalChanges > 0 {
+			sb.WriteString("\n\n*File Changes:*\n")
+
+			if fileChanges.TotalAdded > 0 {
+				sb.WriteString(fmt.Sprintf("✅ Added: %d\n", fileChanges.TotalAdded))
+				for i, file := range fileChanges.AddedFiles {
+					if i >= 20 {
+						remaining := len(fileChanges.AddedFiles) - 20
+						sb.WriteString(fmt.Sprintf("   _...and %d more_\n", remaining))
+						break
+					}
+					sb.WriteString(fmt.Sprintf("   • %s\n", file))
+				}
+			}
+
+			if fileChanges.TotalModified > 0 {
+				sb.WriteString(fmt.Sprintf("\n📝 Modified: %d\n", fileChanges.TotalModified))
+				for i, file := range fileChanges.ModifiedFiles {
+					if i >= 20 {
+						remaining := len(fileChanges.ModifiedFiles) - 20
+						sb.WriteString(fmt.Sprintf("   _...and %d more_\n", remaining))
+						break
+					}
+					sb.WriteString(fmt.Sprintf("   • %s\n", file))
+				}
+			}
+
+			if fileChanges.TotalRemoved > 0 {
+				sb.WriteString(fmt.Sprintf("\n❌ Removed: %d\n", fileChanges.TotalRemoved))
+				for i, file := range fileChanges.RemovedFiles {
+					if i >= 20 {
+						remaining := len(fileChanges.RemovedFiles) - 20
+						sb.WriteString(fmt.Sprintf("   _...and %d more_\n", remaining))
+						break
+					}
+					sb.WriteString(fmt.Sprintf("   • %s\n", file))
+				}
+			}
+		}
 	}
 
 	return sb.String()

@@ -83,9 +83,25 @@ func (p GiteaWebhookPayload) GetCommits() []CommitInfo {
 			ID:      c.ID,
 			Message: c.Message,
 			URL:     c.URL,
+			// Gitea webhook doesn't provide file change details in the payload
+			Added:    []string{},
+			Modified: []string{},
+			Removed:  []string{},
 		}
 	}
 	return commits
+}
+
+// GetFileChangeSummary returns an empty file change summary (Gitea doesn't provide this)
+func (p GiteaWebhookPayload) GetFileChangeSummary() FileChangeSummary {
+	return FileChangeSummary{
+		TotalAdded:    0,
+		TotalModified: 0,
+		TotalRemoved:  0,
+		AddedFiles:    []string{},
+		ModifiedFiles: []string{},
+		RemovedFiles:  []string{},
+	}
 }
 
 // GetCompareURL returns the compare URL
