@@ -14,7 +14,7 @@ data/
 
 # Logs
 *.log
-logs/
+log/
 
 # IDE
 .vscode/
