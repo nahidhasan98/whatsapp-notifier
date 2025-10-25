@@ -57,7 +57,7 @@ func initialize(ctx context.Context) error {
 	}
 
 	// Initialize logger
-	log = logger.New(cfg.Log.Level, cfg.Log.Format)
+	log = logger.New(cfg.Log.Level, cfg.Log.Format, cfg.Log.LogFile)
 	log.Info("Starting WhatsApp Notifier Application")
 
 	// Initialize WhatsApp client
@@ -151,4 +151,9 @@ func waitForShutdown(cancel context.CancelFunc, wg *sync.WaitGroup) {
 	wg.Wait()
 
 	log.Info("Application stopped")
+
+	// Close logger to flush and close log file
+	if err := log.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error closing logger: %v\n", err)
+	}
 }

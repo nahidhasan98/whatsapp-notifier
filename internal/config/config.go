@@ -56,8 +56,9 @@ type WhatsAppConfig struct {
 
 // LogConfig holds logging configuration
 type LogConfig struct {
-	Level  string
-	Format string // "json" or "text"
+	Level   string
+	Format  string // "json" or "text"
+	LogFile string // Path to log file (e.g., "./log/whatsapp-notifier.log")
 }
 
 // SecurityConfig holds security-specific configuration
@@ -100,8 +101,9 @@ func Load() (*Config, error) {
 			DeviceName: getEnv("WHATSAPP_DEVICE_NAME", "macOS"),
 		},
 		Log: LogConfig{
-			Level:  getEnv("LOG_LEVEL", "info"),
-			Format: getEnv("LOG_FORMAT", "text"),
+			Level:   getEnv("LOG_LEVEL", "info"),
+			Format:  getEnv("LOG_FORMAT", "text"),
+			LogFile: getEnv("LOG_FILE", ""),
 		},
 		Security: SecurityConfig{
 			// API Keys that clients use to authenticate
