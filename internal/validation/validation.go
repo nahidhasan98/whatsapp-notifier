@@ -24,6 +24,9 @@ var (
 
 	// LID with suffix pattern: internalid:suffix@lid (e.g., for business accounts)
 	lidWithSuffixPattern = regexp.MustCompile(`^\d+:\d+@lid$`)
+
+	// newsletter pattern: number@newsletter
+	newsletterPattern = regexp.MustCompile(`^\d+@newsletter$`)
 )
 
 // Validator provides validation methods
@@ -87,6 +90,11 @@ func (v *Validator) IsValidJID(jid string) bool {
 
 	// Check LID with suffix (Business accounts)
 	if lidWithSuffixPattern.MatchString(jid) {
+		return true
+	}
+
+	// Check newsletter JID
+	if newsletterPattern.MatchString(jid) {
 		return true
 	}
 
