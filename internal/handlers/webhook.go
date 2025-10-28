@@ -130,10 +130,12 @@ func (h *Handler) formatWebhookMessage(payload WebhookPayload, provider WebhookP
 	var sb strings.Builder
 
 	// Repository and pusher info
-	sb.WriteString(fmt.Sprintf("🔔 *New Push to %s*\n\n", payload.GetRepositoryName()))
-	sb.WriteString(fmt.Sprintf("👤 Pusher: %s\n", payload.GetPusherName()))
-	sb.WriteString(fmt.Sprintf("🌿 Branch: %s\n", payload.GetBranch()))
-	sb.WriteString(fmt.Sprintf("📊 Commits: %d\n\n", payload.GetCommitCount()))
+	sb.WriteString(fmt.Sprintf("🔔 New Push to *%s*\n", payload.GetRepositoryName()))
+	sb.WriteString("\n```")
+	sb.WriteString(fmt.Sprintf("👤 Pusher : %s\n", payload.GetPusherName()))
+	sb.WriteString(fmt.Sprintf("🌿 Branch : %s\n", payload.GetBranch()))
+	sb.WriteString(fmt.Sprintf("📊 Commits: %d\n", payload.GetCommitCount()))
+	sb.WriteString("```\n")
 
 	// List commits
 	commits := payload.GetCommits()
@@ -163,17 +165,17 @@ func (h *Handler) formatWebhookMessage(payload WebhookPayload, provider WebhookP
 				message = message[:57] + "..."
 			}
 
-			sb.WriteString(fmt.Sprintf("• %s - %s\n", shortHash, message))
+			sb.WriteString(fmt.Sprintf("• `%s` - %s\n", shortHash, message))
 		}
-	}
-
-	// Add compare URL if available
-	if compareURL := payload.GetCompareURL(); compareURL != "" {
-		sb.WriteString(fmt.Sprintf("\n🔗 View changes: %s", compareURL))
 	}
 
 	// Add file change summary (only for GitHub)
 	if provider == ProviderGitHub {
+		// Add compare URL if available
+		if compareURL := payload.GetCompareURL(); compareURL != "" {
+			sb.WriteString(fmt.Sprintf("\n🔗 View changes: %s", compareURL))
+		}
+
 		fileChanges := payload.GetFileChangeSummary()
 		totalChanges := fileChanges.TotalAdded + fileChanges.TotalModified + fileChanges.TotalRemoved
 		if totalChanges > 0 {
