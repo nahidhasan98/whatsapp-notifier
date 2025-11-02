@@ -86,6 +86,10 @@ func (h *Handler) handleWebhook(w http.ResponseWriter, r *http.Request, config W
 
 	// Construct message
 	message := h.formatWebhookMessage(payload, config.Provider)
+	if message == "" {
+		h.writeAppError(w, errors.InvalidRequest("Webhook payload has no commits to notify"))
+		return
+	}
 
 	// Send message to configured recipient
 	ctx := r.Context()
@@ -139,34 +143,39 @@ func (h *Handler) formatWebhookMessage(payload WebhookPayload, provider WebhookP
 
 	// List commits
 	commits := payload.GetCommits()
-	if len(commits) > 0 {
-		sb.WriteString("*Commits:*\n")
-		for i, commit := range commits {
-			// Limit to first 5 commits
-			if i >= 5 {
-				remaining := len(commits) - 5
-				sb.WriteString(fmt.Sprintf("\n_...and %d more commit(s)_\n", remaining))
-				break
-			}
+	if len(commits) == 0 {
+		// write a log message and return empty string
+		h.log.Warnf("%s webhook payload has zero commits. Skipping notification", provider)
+		return sb.String()
+	}
 
-			// Get short commit hash (first 7 chars)
-			shortHash := commit.ID
-			if len(shortHash) > 7 {
-				shortHash = shortHash[:7]
-			}
-
-			// Get first line of commit message
-			message := commit.Message
-			if idx := strings.Index(message, "\n"); idx != -1 {
-				message = message[:idx]
-			}
-			// Truncate long messages
-			if len(message) > 60 {
-				message = message[:57] + "..."
-			}
-
-			sb.WriteString(fmt.Sprintf("• `%s` - %s\n", shortHash, message))
+	// Add commit details
+	sb.WriteString("*Commits:*\n")
+	for i, commit := range commits {
+		// Limit to first 5 commits
+		if i >= 5 {
+			remaining := len(commits) - 5
+			sb.WriteString(fmt.Sprintf("\n_...and %d more commit(s)_\n", remaining))
+			break
 		}
+
+		// Get short commit hash (first 7 chars)
+		shortHash := commit.ID
+		if len(shortHash) > 7 {
+			shortHash = shortHash[:7]
+		}
+
+		// Get first line of commit message
+		message := commit.Message
+		if idx := strings.Index(message, "\n"); idx != -1 {
+			message = message[:idx]
+		}
+		// Truncate long messages
+		if len(message) > 60 {
+			message = message[:57] + "..."
+		}
+
+		sb.WriteString(fmt.Sprintf("• `%s` - %s\n", shortHash, message))
 	}
 
 	// Add file change summary (only for GitHub)
